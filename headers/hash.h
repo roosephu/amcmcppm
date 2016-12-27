@@ -41,18 +41,30 @@ template<class T, int BUFFER_SIZE = int(2e6)> struct Buffer {
     }
 };
 
+#define HASH_KEY(k) k // (k + (k >> 1))
+
 template<class V, int P = int(1e7) + 19> struct Hash {
     ListNode<V> *ptr[P];
+    int count = 0;
 
     void clear() {
         // buf.reset();
+        count = 0;
         for (int i = 0; i < P; ++i) {
             ptr[i] = nullptr;
         }
     }
 
+    int validEntries() {
+        int x = 0;
+        for (int i = 0; i < P; ++i) {
+            x += !!ptr[i];
+        }
+        return x;
+    }
+
     ListNode<V> *find(unsigned long key) {
-        return ptr[key % P];
+        return ptr[HASH_KEY(key) % P];
     }
 
     void insert(unsigned long key, ListNode<V> *node) {
@@ -60,7 +72,7 @@ template<class V, int P = int(1e7) + 19> struct Hash {
         //     printf("yes!\n");
         // }
 
-        int loc = key % P;
+        int loc = HASH_KEY(key) % P;
         node->next = ptr[loc];
         ptr[loc] = node;
     }

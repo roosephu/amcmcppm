@@ -3,3 +3,4 @@ outputs
 .vscode
 .gdbinit
 .DS_Store
+*dSYM/

@@ -158,7 +158,8 @@ struct Env {
     }
 
     unsigned long hash(unsigned long x, unsigned long y, unsigned long z) {
-        return (x << 32) ^ (y << 16) ^ z;
+        // return (x << 32) + (y << 16) + z;
+        return (x * 1000000007 + y) * 1000000007 + z;
     }
 
     Env() {
@@ -172,7 +173,7 @@ struct Env {
         // if (hash_test == 0)
         //     return;
         printf("[hash] \n");
-        int total_test = 0, total_hit = 0;
+        long total_test = 0, total_hit = 0;
         for (int i = 0; i < HASH_LEVEL; ++i) {
             if (hash_test[i] != 0) {
                 double rate = (double) (hash_hit[i] + 1e-8) / (hash_test[i] + 1e-8);
@@ -192,16 +193,23 @@ struct Env {
             auto hash_val = hash(h, intersection);
             for (auto node = H[h].find(hash_val); node; node = node->next) {
                 ++hash_test[h];
-                if (node->key != hash_val)
+                if (node->key != hash_val) {
+                    // if (rand() <= 100000) {
+                    //     printf("%lu %lu\n", hash_val, node->key);
+                    // }
                     continue;
+                }
                 ++hash_match[h];
                 HitPoint *hit_point = node->item;
                 if (dot(hit_point->normal, normal) > 1e-3) {
                     Vec3 v = intersection - hit_point->loc;
                     // hit_point->flux = Vec3(0.75, 0.25, 0.25);
                     real distance = dot(v, v);
-                    assert(distance <= cube_sizes[h] * 1.8); 
+                    assert(distance <= cube_sizes[h] * 1.8);
                     if (distance <= hit_point->rad_sqr) {
+                        // if (hit_point == hit_points + 24) {
+                        //     printf("intersect with (0, 24): (%f, %f, %f)\n", intersection.x, intersection.y, intersection.z);
+                        // }
                         ++hash_hit[h];
                         visited = true;
                         real m = 1;
@@ -222,6 +230,10 @@ struct Env {
 
         for (int depth = 1; depth <= 10; ++depth) {
             auto _i = bvh.intersect(ray);
+            // if (mode == LIGHT) {
+            //     bvh.profile();
+            //     // printf("intersection: %f %f %f\n", intersection.x, intersection.y, intersection.z);
+            // }
             auto t = _i.first;
             auto obj = _i.second;
             if (obj == nullptr)
@@ -249,6 +261,9 @@ struct Env {
             }
             if (dot(ray_out.first, normal) < 0) // get through
                 inside = !inside;
+            // if (!brdf->is_delta) {
+            //     ray_out.first = (Vec3(-1.050568, 2.000000, 0.741164) - intersection).normalize();
+            // }
 
             if (brdf->is_delta) {
                 ray = Ray(intersection, ray_out.first);
@@ -311,6 +326,9 @@ struct Env {
         int xl = floor((hit_point->loc.x - rad) / cube_size), xr = floor((hit_point->loc.x + rad) / cube_size);
         int yl = floor((hit_point->loc.y - rad) / cube_size), yr = floor((hit_point->loc.y + rad) / cube_size);
         int zl = floor((hit_point->loc.z - rad) / cube_size), zr = floor((hit_point->loc.z + rad) / cube_size);
+        // if (hit_point == hit_points + 24) {
+        //     printf("hash 24: %d %d %d, rad = %f, cube size = %f\n", xl, yl, zl, rad, cube_size);
+        // }
 
         for (int x = xl; x <= xr; ++x) {
             for (int y = yl; y <= yr; ++y) {
@@ -319,6 +337,7 @@ struct Env {
                     ListNode<HitPoint *> *node = hash_buf.get();
                     node->key = key;
                     node->item = hit_point;
+                    node->next = nullptr;
                     H[level].insert(key, node);
                 }
             }
@@ -374,13 +393,13 @@ struct Env {
             last += hash_rate[i] / sum * num_hit_points;
             hash_rate[i] /= sum;
         }
-        
+
         int level = -1;
         for (int i = 0; i < num_hit_points; ++i) {
             // int level = min(rads[i].first, HASH_LEVEL - 1);
             // int level = pow(1. * i / num_hit_points, 1 / theta) * HASH_LEVEL;
             real rad = sqrt(rads[i].second->rad_sqr);
-            if (level < HASH_LEVEL - 1 && i >= starts[level + 1] && cube_sizes[level + 1] >= rad) {
+            if (level < HASH_LEVEL - 1 && i >= starts[level + 1] && cube_sizes[level + 1] >= rad * 2) {
                 ++level;
                 cube_sizes[level] = min(cube_sizes[level], rad * 2);
             }
@@ -402,7 +421,7 @@ struct Env {
 
         printf("[hash] ");
         for (int i = 0; i < HASH_LEVEL; ++i) {
-            printf("(%.8f: %d), ", cube_sizes[i], count[i]);
+            printf("(%.8f: %d/%d), ", cube_sizes[i], count[i], H[i].validEntries());
         }
         printf("\n");
     }
@@ -469,26 +488,30 @@ int main() {
     obj_reader("water-caustic/models/Mesh000.obj", &env, false);
     obj_reader("water-caustic/models/Mesh001.obj", &env, true);
 
-    real ymax = 100;
+    // for (int i = 0; i < HASH_LEVEL; ++i) {
+    //     printf("%f\n", env.cube_sizes[i]);
+    // }
+
+    real ymax = 2;
     add_rectangle( // floor
-        Vec3(1.1, 0, 1),
-        Vec3(1.1, 0, -1),
-        Vec3(-1.1, 0, 1),
-        Vec3(-1.1, 0, -1),
+        Vec3(1, 0, 1),
+        Vec3(1, 0, -1),
+        Vec3(-1, 0, 1),
+        Vec3(-1, 0, -1),
         new Diffusion(Vec3(0.725, 0.71, 0.68))
     );
     add_rectangle( // ceiling
-        Vec3(-1.1, 2., -1),
-        Vec3(1.1, 2., -1),
-        Vec3(-1.1, 2., 1),
-        Vec3(1.1, 2., 1),
+        Vec3(-1, 2., -1),
+        Vec3(1, 2., -1),
+        Vec3(-1, 2., 1),
+        Vec3(1, 2., 1),
         new Diffusion(Vec3(0.725, 0.71, 0.68))
     );
     add_rectangle( // back wall
-        Vec3(1.1, ymax, -1),
-        Vec3(1.1, 0., -1),
-        Vec3(-1.1, ymax, -1),
-        Vec3(-1.1, 0., -1),
+        Vec3(1, ymax, -1),
+        Vec3(1, 0., -1),
+        Vec3(-1, ymax, -1),
+        Vec3(-1, 0., -1),
         new Diffusion(Vec3(0.725, 0.71, 0.68))
     );
     add_rectangle( // right wall
@@ -578,7 +601,7 @@ int main() {
     // env.light = new PointLight(Vec3(-0.005, 1.98, -0.03), Vec3(541127, 381972, 127324) * 0.0003, 0.001);
     // env.light = new PointLight(Vec3(-0.005, 1.98, -0.03), Vec3(541127, 381972, 127324) * 1e-4, 0.00252);
     // env.light = new PlaneLight(Vec3(-0.005, 1.98, -0.03), Vec3(0.005, -1.48, 0.03), 0.00252, Vec3(541127, 381972, 127324) * 6e-4);
-    env.light = new SemisphereLight(Vec3(0, 1.99998, 0), Vec3(0, -1, 0), Vec3(541127, 381972, 127324) * 1e-3, 0.00252);
+    env.light = new SemisphereLight(Vec3(0, 1.99998, 0), Vec3(0, -1, 0), Vec3(541127, 381972, 127324), 0.00252);
 
     bool initialized = false;
     PathSpace current_path;
@@ -605,6 +628,9 @@ int main() {
             for (int j = 0; j < height; ++j) {
                 env.pixel = {i, j};
                 PathSpace path(false);
+                // if (i == 0 && j == 24) {
+                //     printf("en?\n");
+                // }
 
                 Vec3 d = cx * ((i + rand_gen()) / width - 0.5) + cy * (-(j + rand_gen()) / height + 0.5) + cam.dir;
                 env.trace(Ray(cam.loc, d), EYE, path, Vec3(1, 1, 1));
@@ -617,6 +643,8 @@ int main() {
         env.initialize_hit_points();
         // env.hash_profile();
         env.build_hash(0);
+
+        // printf("(0, 24): %f %f %f\n", env.hit_points[24].loc.x, env.hit_points[24].loc.y, env.hit_points[24].loc.z);
 
         int init_count = 0;
         while (!initialized) {
@@ -633,6 +661,10 @@ int main() {
 
         // sample from light
         for (int i = 1, percentile = max(1, num_photons / 100); i <= num_photons; ++i) {
+            // printf("%d\n", i);
+            // debug = i;
+            // env.hash_profile();
+            // env.bvh.profile();
             ++current_photons;
             if (i % percentile == 0)
                 fprintf(stderr, "\riteration #%d: progress: %2.0f%%", stage, 100. * i / num_photons);
@@ -670,6 +702,11 @@ int main() {
         real scale = 1. * uniform_count / current_photons;
         // real scale = 1.;
         write_image(&env, scale / current_photons);
+        // for (int i = 0; i < width * height; ++i) {
+        //     if (env.hit_points[i].count == 0 && env.hit_points[i].clock == env.clock) {
+        //         printf("%d %d\n", i / height, i % height);
+        //     }
+        // }
 
         // sort(env.lengths.begin(), env.lengths.end());
         // printf("%f %f\n", env.lengths[env.lengths.size() / 3], env.lengths[2 * env.lengths.size() / 3]);

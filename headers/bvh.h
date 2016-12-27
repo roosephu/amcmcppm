@@ -18,7 +18,7 @@ struct bvh_node {
     bvh_node *lc, *rc;
     int dir;
     Vec3 L, R;
-    Object *obj[MIN_SIZE];
+    Object *obj[MIN_SIZE] = {0};
     int size;
 
     bvh_node() {}
@@ -85,7 +85,7 @@ struct BVH {
                 Vec3 L = Vec3(1, 1, 1) * +infinity;
                 Vec3 R = Vec3(1, 1, 1) * -infinity;
                 for (int i = 0; i < n; ++i) {
-                    Object *obj = get<1>(coord[i]); 
+                    Object *obj = get<1>(coord[i]);
                     L = min(L, obj->lower());
                     R = max(R, obj->upper());
                     get<2>(coord[i]) += (R.sum() - L.sum()) / area * (i + 1);
@@ -175,6 +175,9 @@ struct BVH {
         count_intersect += 1;
         hit = infinity;
         target = nullptr;
+        if (debug == 3) {
+            printf("ray = %f %f %f -> %f %f %f", ray.loc.x, ray.loc.y, ray.loc.z, ray.dir.x, ray.dir.y, ray.dir.z);
+        }
 
         find(root, &ray, root->intersect(&ray));
 

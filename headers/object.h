@@ -187,11 +187,11 @@ struct TriangleNormal : Object {
         auto ret = (nz * a + nx * b + ny * c) / area;
         assert(abs(a + b + c - area) <= 1e-7);
 
-        if (debug) {
-            printf("\narea = %.8f, x = (%f %f %f) y = (%f %f %f), z = (%f %f %f)\n", area, x.x, x.y, x.z, y.x, y.y, y.z, z.x, z.y, z.z);
-            printf("nx = (%f %f %f), ny = (%f %f %f), nz = (%f %f %f)\n", nx.x, nx.y, nx.z, ny.x, ny.y, ny.z, nz.x, nz.y, nz.z);
-        }
+        // if (debug) {
+        //     printf("\narea = %.8f, x = (%f %f %f) y = (%f %f %f), z = (%f %f %f)\n", area, x.x, x.y, x.z, y.x, y.y, y.z, z.x, z.y, z.z);
+        //     printf("nx = (%f %f %f), ny = (%f %f %f), nz = (%f %f %f)\n", nx.x, nx.y, nx.z, ny.x, ny.y, ny.z, nz.x, nz.y, nz.z);
+        // }
         return ret;
     }
-    
+
 };
