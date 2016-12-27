@@ -1,0 +1,5 @@
+outside-src
+outputs
+.vscode
+.gdbinit
+.DS_Store
