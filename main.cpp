@@ -19,6 +19,7 @@ int debug = 0;
 #include "headers/hash.h"
 #include "headers/mcmc.h"
 #include "headers/bvh.h"
+#include "headers/light.h"
 
 using namespace std;
 // using namespace cv;
@@ -30,7 +31,7 @@ const int scale = 1, width = 1024, height = 1024;
 // const int width = 16, height = 12;
 const int num_stages = 10000, num_photons = 1000000;
 const real alpha = 0.3; // ppm
-const real initial_cube_size = 0.1;
+const real initial_cube_size = 0.05;
 // const int super_sampling = 1;
 
 enum LightSource {
@@ -49,73 +50,6 @@ struct HitPoint {
     HitPoint(Vec3 loc_, Vec3 normal_, Vec3 weight_)
         : loc(loc_), normal(normal_), weight(weight_), count(0), clock(-1)
     {
-    }
-};
-
-
-struct Light {
-    Vec3 flux;
-    Light() {}
-
-    virtual Ray gen_ray(PathSpace &path) = 0;
-};
-
-struct PointLight : Light {
-    Vec3 loc;
-    real rad;
-
-    PointLight(Vec3 loc_, Vec3 flux_, real rad_)
-        : loc(loc_), rad(rad_)
-    {
-        flux = flux_;
-    }
-
-    Ray gen_ray(PathSpace &path) {
-        Vec3 dir = gen_sphere(path);
-        return Ray(loc + dir * rad, dir);
-    }
-
-};
-
-struct SemisphereLight : Light {
-    Vec3 dir, loc;
-    real rad;
-
-    SemisphereLight(Vec3 loc_, Vec3 dir_, Vec3 flux_, real rad_)
-        : loc(loc_), dir(dir_), rad(rad_)
-    {
-        flux = flux_;
-    }
-
-    Ray gen_ray(PathSpace &path) {
-        Vec3 d = gen_sphere(path);
-        if (dot(dir, d) <= 0)
-            d = d * -1;
-        return Ray(loc + d * rad, d);
-    }
-
-};
-
-struct PlaneLight : Light {
-    Vec3 loc, dir, cx, cy;
-    real dist;
-
-    PlaneLight(Vec3 loc_, Vec3 dir_, real dist_, Vec3 flux_)
-        : loc(loc_), dir(dir_), dist(dist_)
-    {
-        flux = flux_;
-        if (abs(dir.x) < 0.5)
-            cx = Vec3(1, 0, 0);
-        else if (abs(dir.y) < 0.5)
-            cx = Vec3(0, 1, 0);
-        else
-            cx = Vec3(0, 0, 1);
-        cy = dir % cx;
-    }
-
-    Ray gen_ray(PathSpace &path) {
-        real u1 = 2 * path.next() - 1, u2 = 2 * path.next() - 1;
-        return Ray(loc + cx * u1 + cy * u2, dir);
     }
 };
 
@@ -217,6 +151,8 @@ struct Env {
                         hit_point->rad_sqr *= g;
                         hit_point->count += m;
                         hit_point->flux = (hit_point->flux + flux * hit_point->weight / pi) * g;
+                        assert(flux.x >= 0 && flux.y >= 0 && flux.z >= 0);
+                        assert(hit_point->weight.x >= 0 && hit_point->weight.y >= 0 && hit_point->weight.z >= 0);
                     }
                 }
             }
@@ -255,6 +191,7 @@ struct Env {
 
             flux = flux * ray_out.second;
             if (inside) {
+                assert(t > 0);
                 real absorption_rate = exp(-t * 0.61);
                 // total += t;
                 flux = flux * (Vec3(0.63, 0.45, 0.09) * (1 - absorption_rate) + absorption_rate);
@@ -275,6 +212,7 @@ struct Env {
                 hit_point->weight = flux;
                 // hit_point->flux = Vec3();
                 hit_point->clock = clock;
+                assert(flux.x >= 0 && flux.y >= 0 && flux.z >= 0);
                 break;
             } else {
                 update_hit_points(intersection, normal, flux);
@@ -399,7 +337,10 @@ struct Env {
             // int level = min(rads[i].first, HASH_LEVEL - 1);
             // int level = pow(1. * i / num_hit_points, 1 / theta) * HASH_LEVEL;
             real rad = sqrt(rads[i].second->rad_sqr);
-            if (level < HASH_LEVEL - 1 && i >= starts[level + 1] && cube_sizes[level + 1] >= rad * 2) {
+
+            // the following code is wrong: because we don't add points with `clock` != clock
+            // if (level < HASH_LEVEL - 1 && i >= starts[level + 1] && cube_sizes[level + 1] >= rad * 2) {
+            if (i % (num_hit_points / HASH_LEVEL + 1) == 0) {
                 ++level;
                 cube_sizes[level] = min(cube_sizes[level], rad * 2);
             }
@@ -616,10 +557,13 @@ int main() {
             env.hit_points[index].rad_sqr = initial_cube_size * initial_cube_size / 4;
         }
     }
+    PathSpace random_path(false);
 
     // const double constants[] = {1, 1.1, 1.7, 1.9, 2.4, 2.5, 2.5, 2.5, 2.5, 3, 3, 3, 3, 3, 3, 3};
     for (int stage = 1; stage <= num_stages; ++stage) {
         printf("[clock] iteration #%d: %.3f\n", stage, 1. * clock() / CLOCKS_PER_SEC);
+        // int i1 = 255 * 512 + 206;
+        // printf("(255, 206): (%.3f, %.3f, %.3f), rad = %.3f\n", env.hit_points[i1].loc.x, env.hit_points[i1].loc.y, env.hit_points[i1].loc.z, env.hit_points[i1].rad_sqr);
 
         env.reset();
         // build photon mapping
@@ -627,17 +571,17 @@ int main() {
             fprintf(stderr, "\r[eye phase]: %2.0f%%", 100. * i / width);
             for (int j = 0; j < height; ++j) {
                 env.pixel = {i, j};
-                PathSpace path(false);
                 // if (i == 0 && j == 24) {
                 //     printf("en?\n");
                 // }
 
                 Vec3 d = cx * ((i + rand_gen()) / width - 0.5) + cy * (-(j + rand_gen()) / height + 0.5) + cam.dir;
-                env.trace(Ray(cam.loc, d), EYE, path, Vec3(1, 1, 1));
+                env.trace(Ray(cam.loc, d), EYE, random_path, Vec3(1, 1, 1));
 
             }
             // env.bvh.profile();
         }
+        // printf("(256, 206): (%.3f, %.3f, %.3f), rad = %.3f\n", env.hit_points[i2].loc.x, env.hit_points[i2].loc.y, env.hit_points[i2].loc.z, env.hit_points[i2].rad_sqr);
         fprintf(stderr, "\r");
         env.bvh.profile();
         env.initialize_hit_points();
@@ -699,8 +643,8 @@ int main() {
             // env.visible(current_path, 1. * uniform_count / (uniform_count + mutated));
         }
         fprintf(stderr, "\r");
-        real scale = 1. * uniform_count / current_photons;
-        // real scale = 1.;
+        // real scale = 1. * uniform_count / current_photons;
+        real scale = 1.;
         write_image(&env, scale / current_photons);
         // for (int i = 0; i < width * height; ++i) {
         //     if (env.hit_points[i].count == 0 && env.hit_points[i].clock == env.clock) {
