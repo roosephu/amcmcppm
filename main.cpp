@@ -24,14 +24,14 @@ int debug = 0;
 using namespace std;
 // using namespace cv;
 
-#define HASH_LEVEL 5
+#define HASH_LEVEL 1
 
 // const real threshold = 1e-6;
 const int scale = 1, width = 1024, height = 1024;
 // const int width = 16, height = 12;
 const int num_stages = 10000, num_photons = 1000000;
-const real alpha = 0.3; // ppm
-const real initial_cube_size = 0.05;
+const real alpha = 0.7; // ppm
+const real initial_cube_size = 0.01;
 // const int super_sampling = 1;
 
 enum LightSource {
@@ -85,7 +85,7 @@ struct Env {
     pair<int, int> pixel;
     bool visited;
     long hash_test[HASH_LEVEL] = {0}, hash_hit[HASH_LEVEL] = {0}, hash_match[HASH_LEVEL] = {0};
-    double hash_rate[HASH_LEVEL] = {1, 1, 1, 1, 1};
+    double hash_rate[HASH_LEVEL] = {1};
 
     unsigned long hash(int level, Vec3 v) {
         return hash(floor(v.x / cube_sizes[level]), floor(v.y / cube_sizes[level]), floor(v.z / cube_sizes[level]));
@@ -190,12 +190,12 @@ struct Env {
             auto ray_out = brdf->sample(path, ray.dir, normal, into);
 
             flux = flux * ray_out.second;
-            if (inside) {
-                assert(t > 0);
-                real absorption_rate = exp(-t * 0.61);
-                // total += t;
-                flux = flux * (Vec3(0.63, 0.45, 0.09) * (1 - absorption_rate) + absorption_rate);
-            }
+            // if (inside) {
+            //     assert(t > 0);
+            //     real absorption_rate = exp(-t * 0.61);
+            //     // total += t;
+            //     flux = flux * (Vec3(0.63, 0.45, 0.09) * (1 - absorption_rate) + absorption_rate);
+            // }
             if (dot(ray_out.first, normal) < 0) // get through
                 inside = !inside;
             // if (!brdf->is_delta) {
@@ -433,7 +433,7 @@ int main() {
     //     printf("%f\n", env.cube_sizes[i]);
     // }
 
-    real ymax = 2;
+    real ymax = 4;
     add_rectangle( // floor
         Vec3(1, 0, 1),
         Vec3(1, 0, -1),
@@ -543,6 +543,7 @@ int main() {
     // env.light = new PointLight(Vec3(-0.005, 1.98, -0.03), Vec3(541127, 381972, 127324) * 1e-4, 0.00252);
     // env.light = new PlaneLight(Vec3(-0.005, 1.98, -0.03), Vec3(0.005, -1.48, 0.03), 0.00252, Vec3(541127, 381972, 127324) * 6e-4);
     env.light = new SemisphereLight(Vec3(0, 1.99998, 0), Vec3(0, -1, 0), Vec3(541127, 381972, 127324), 0.00252);
+    // env.light = new SemisphereLight(Vec3(0, 10, 0), Vec3(0, -1, 0), Vec3(541127, 381972, 127324), 0.00252);
 
     bool initialized = false;
     PathSpace current_path;

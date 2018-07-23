@@ -4,3 +4,4 @@ outputs
 .gdbinit
 .DS_Store
 *dSYM/
+rust
